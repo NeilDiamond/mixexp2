@@ -28,4 +28,4 @@ SLDnew <- function(fac, lev, center=FALSE, axial=FALSE){
   return(SL)
 }
 
-
+#
