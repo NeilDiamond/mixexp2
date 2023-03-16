@@ -4,14 +4,16 @@
 \alias{SLDnew}
 \title{Create Simplex Lattice Design}
 \usage{
-SLDnew(fac, lev, center = F, axial = F)
+SLDnew(fac, lev, center = FALSE, axial = FALSE)
 }
 \arguments{
+\item{fac}{Number of Factors}
+
+\item{lev}{Number of Levels per Factor}
+
 \item{center}{logical: Is center point required; or numerical: number of center points}
 
 \item{axial}{logical: Are axial points required}
-
-\item{Number}{of Levels per Factor}
 }
 \value{
 The simplex lattice design
@@ -20,5 +22,5 @@ The simplex lattice design
 Create Simplex Lattice Design
 }
 \examples{
-SLDnew(3, 2, center=T, axial=T)
+SLDnew(3, 2, center=TRUE, axial=TRUE)
 }
