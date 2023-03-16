@@ -1,0 +1,270 @@
+---
+title: "Mixture Experiments Minitab and R"
+author: "Neil Diamond"
+date: "2023-01-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Simplex Lattice Design
+
+```{r}
+library("mixexp")
+library(combinat)
+library(mixexp)
+library(mixexp2)
+library(rsm)
+library(car)
+library(nloptr)
+library(knitr)
+library(dplyr)
+
+SLDnew <- function(fac, lev, center=F, axial=F){
+  # Adapted from SLD function in mixexp package
+  
+  cnames <- paste("x", 1:fac, sep = "")
+  SL <- t(xsimplex(fac,lev))/lev
+  centermat <- matrix(1/fac, center, fac)
+  axialmat <-  matrix(rep(unlist(matrix(0.5/fac, fac, fac) + 0.5*diag(fac)),axial), ncol=fac, byrow=T)
+  SL <- rbind(SL,centermat,axialmat)
+  colnames(SL) <- cnames
+  dimS <- dim(SL)
+  rows <- dimS[1]
+  rnames <- paste(1:rows)
+  rownames(SL) <- rnames
+  return(SL)
+}
+
+des <- SLDnew(3, 2, center=1, axial=1)
+```
+
+* Modify to add to 100%
+* Modify to include lower bounds
+* Modify to include factor names
+
+## The Design Plot
+
+```{r}
+mixexp::DesignPoints(0.2+0.4*des, x1lower=0.2,x1upper=0.6,x2lower=0.2,x2upper=0.6,x3lower=0.2,x3upper=0.6,
+             pseudo=T)
+```
+
+## Analysis
+
+
+
+## Analysis in actual proportions
+
+```{r}
+extension <- c(415, 484,424,400,409,342,456, 460,450, 411)
+desrun1 <- data.frame(0.2+0.4*des, y=extension)
+desrun1
+fit1 <- lm(y~(x1+x2+x3)^2-1, data=desrun1)
+summary(fit1)
+anova(fit1)
+fit2 <- lm(y~(x1+x2+x3)-1, data=desrun1)
+anova(fit2, fit1)
+fit3 <- lm(y~1, data=desrun1)
+anova(fit3)
+anova(fit3, fit2)
+anova(fit3, fit1)
+str(anova(fit3,fit2))
+anova(fit3)$`Sum Sq`
+anova(fit2)$`Sum Sq`[4]
+anova(fit3)$`Sum Sq`-anova(fit2)$`Sum Sq`[4]
+
+
+mixexp::MixturePlot(des=desrun1, mod=2)
+mixexp::MixturePlot(des=desrun1,  mod=2, cols=T)
+```
+
+
+```{r}
+
+MixtureAnalysis <- function(DF, resp="y"){
+  respval <- eval(parse(text=paste0("DF$",resp)))
+  
+  xvars <- setdiff(names(DF),resp)
+  
+  xvars0 <- xvars[-1]
+  xvars1 <- paste(xvars0, collapse=",")
+  xvars2 <- paste(xvars,  collapse=",")
+  xvars3 <- paste(xvars,  collapse="+")
+  
+  DF$respval <- respval
+  fit0 <- eval(parse(text=paste0("lm(respval ~ (",xvars3,")^2-1,data=DF)")))
+  fit <- eval(parse(text=paste0("rsm(respval ~ FO(",xvars1,")+TWI(", xvars2,"),data=DF)")))
+  mixaov <- matrix(NA, 5, 6)
+  row.names(mixaov) <- c("Regression","Linear","Quadratic","Residual Error", "Total")
+  colnames(mixaov) <- c("Df","Seq SS","Adj SS","Adj MS","F","p")
+  
+  Anovafit <- Anova(fit)
+  mixaov[2:4,3] <- Anovafit$`Sum Sq`
+  mixaov[2:4,1] <- Anovafit$Df
+  mixaov[2:3,5] <- Anovafit$`F value`[1:2]
+  mixaov[2:3,6] <- Anovafit$`Pr(>F)`[1:2]
+  
+  fit2 <- lm(respval ~ 1,data=DF)
+  mixaov[2:4,2] <- anova(fit)$`Sum Sq`
+  mixaov[5,1] <- anova(fit2)$Df
+  mixaov[5,2] <- anova(fit2)$`Sum Sq`
+  mixaov[1,1] <- mixaov[2,1]+mixaov[3,1]
+  mixaov[1,2] <- mixaov[2,2]+mixaov[3,2]
+  mixaov[1,3] <- mixaov[1,2]
+  mixaov[1:4,4] <- mixaov[1:4,3]/mixaov[1:4,1]
+  mixaov[1,5] <- mixaov[1,4]/mixaov[4,4]
+  mixaov[1,6] <- 1-pf(mixaov[1,5], mixaov[1,1], mixaov[1,4])
+  options(knitr.kable.NA = '')
+ list(kable(mixaov, digits=c(0,2,2,2,2,3)),
+ fit0)
+}
+MixtureAnalysis(desrun1)
+```
+
+```{r}
+
+
+model_equation <- function(model, ...) {
+  format_args <- list(...)
+  
+  model_coeff <- model$coefficients
+  format_args$x <- abs(model$coefficients)
+  model_coeff_sign <- sign(model_coeff)
+  model_coeff_prefix <- case_when(model_coeff_sign == -1 ~ " - ",
+                                  model_coeff_sign == 1 ~ " + ",
+                                  model_coeff_sign == 0 ~ " + ")
+  model_eqn <- paste(strsplit(as.character(model$call$formula), "~")[[2]], # 'y'
+                     "=",
+                     paste(if_else(model_coeff[1]<0, "- ", ""),
+                           do.call(format, format_args)[1],
+                           paste(model_coeff_prefix[-1],
+                                 do.call(format, format_args)[-1],
+                                 " * ",
+                                 names(model_coeff[-1]),
+                                 sep = "", collapse = ""),
+                           sep = ""))
+  return(model_eqn)
+}
+
+model_equation(fit1)
+
+```
+
+```{r}
+predict(fit1)
+fitobj <- fit1
+predictfn <- function(x, fitobj=fit1){
+  x1 <- x[1]
+  x2 <- x[2]
+  x3 <- x[3]
+ newdf <- data.frame(x1, x2, x3)
+ (predict(fitobj,newdata=newdf)-400)^2
+}
+
+predictfn(c(1/3,1/3,1/3))
+lb <- rep(0.2,3)
+ub <- rep(0.6,3)
+x0 <- rep(1,3)/3
+eval_g_eq <- function(x, fitobj=fit1){
+  return(x[1]+x[2]+x[3]-1)
+}
+
+
+res <- nloptr::nloptr(x0=x0,
+             eval_f=predictfn,
+             lb=lb, ub=ub, eval_g_eq=eval_g_eq, fitobj=fitobj,
+             opts=list(algorithm="NLOPT_GN_ISRES",maxeval=100000))
+res$solution
+newdata1 <- data.frame(x1=res$solution[1],x2=res$solution[2], x3=res$solution[3])
+predict(fit1, newdata=newdata1)
+```
+
+## Soap
+
+```{r}
+soapdes <- mixexp::Xvert(4, uc=c(0.4,0.4,0.7,0.4), lc=c(0.05,0.05,0.30,0.05))
+soapdes <- soapdes[,-ncol(soapdes)]
+soapdes
+soapdeswithaxial <- rbind(soapdes,0.5*(soapdes[rep(nrow(soapdes),nrow(soapdes)-1),]+soapdes[-nrow(soapdes),]))
+soapdeswithaxial <- round(soapdeswithaxial,6)
+
+
+mixexp::DesignPoints(soapdeswithaxial[near(soapdeswithaxial$x1,min(soapdeswithaxial$x1)),-1], 
+             cornerlabs=c("Lye", "Alcohol","Salt"), axislabs=c("Salt","Alcohol","Lye"),
+             x1lower=0.05, x1upper=0.40, x2lower=0.30, x2upper=0.70,x3lower=0.05, x3upper=0.40, pseudo=T)
+mixexp::DesignPoints(soapdeswithaxial[near(soapdeswithaxial$x2,min(soapdeswithaxial$x2)),-2])
+mixexp::DesignPoints(soapdeswithaxial[near(soapdeswithaxial$x3,min(soapdeswithaxial$x3)),-3])
+mixexp::DesignPoints(soapdeswithaxial[near(soapdeswithaxial$x4,min(soapdeswithaxial$x4)),-4])
+
+near(soapdeswithaxial$x1,max(soapdeswithaxial$x1))
+soapdeswithaxial[near(soapdeswithaxial$x1,max(soapdeswithaxial$x1)),]
+soapdeswithaxial[near(soapdeswithaxial$x2,max(soapdeswithaxial$x2)),]
+soapdeswithaxial[near(soapdeswithaxial$x3,max(soapdeswithaxial$x3)),]
+soapdeswithaxial[near(soapdeswithaxial$x4,max(soapdeswithaxial$x4)),]
+```
+
+```{r}
+
+soap <- read.csv("../extdata/Soap.csv")[,-(1:4)]
+
+soap
+dim(soap)
+round(soap[,-5]-100*soapdeswithaxial,2)
+MixtureAnalysis(soap, resp="Quality")
+```
+
+```{r}
+soapdeswithaxial$Quality <- c(9, 16, 5, 2, 5,
+                             10,17,3,10,12,
+                             11, 3, 80, 38, 51,
+                             39,38,56, 49, 49,
+                             39,54,34, 47, 39)
+soapfit1 <- MixtureAnalysis(soapdeswithaxial, resp="Quality")
+soapfit1
+```
+
+```{r}
+predictfn <- function(x, fitobj=soapfit1[[2]]){
+  x1 <- x[1]
+  x2 <- x[2]
+  x3 <- x[3]
+  x4 <- x[4]
+ newdf <- data.frame(x1, x2, x3,x4)
+ -predict(fitobj,newdata=newdf)
+}
+
+predictfn(c(5/27,5/27,4/9,5/27))
+lb <- c(0.05,0.05,0.30,0.05)
+ub <- c(0.40,0.40,0.70,0.40)
+x0 <- c(5/27,5/27,4/9,5/27)
+eval_g_eq <- function(x, fitobj=soapfit1[[2]]){
+  return(x[1]+x[2]+x[3]+x[4]-1)
+}
+
+library(nloptr)
+soapres <- nloptr(x0=x0,
+             eval_f=predictfn,
+             lb=lb, ub=ub, eval_g_eq=eval_g_eq, fitobj=soapfit1[[2]],
+             opts=list(algorithm="NLOPT_GN_ISRES",maxeval=100000))
+soapres
+
+predictfn(soapres$solution, soapfit1[[2]])
+```
+
+
+## Soap2
+
+```{r}
+soapdes2 <- Xvert(4, uc=c(0.25,0.25,0.55,0.25), lc=c(0.15,0.15,0.35,0.15))
+soapdes2 <- soapdes2[,-ncol(soapdes2)]
+soapdes2
+soapdes2withaxial <- rbind(soapdes2,0.5*(soapdes2[rep(nrow(soapdes2),nrow(soapdes2)-1),]+soapdes2[-nrow(soapdes2),]))
+soapdes2withaxial <- round(soapdes2withaxial,6)
+soapdes2withaxial <- rbind(soapdes2withaxial, soapdes2withaxial)
+row.names(soapdes2withaxial) <- 1:nrow(soapdes2withaxial)
+round(100*soapdes2withaxial, 2)
+
+```
