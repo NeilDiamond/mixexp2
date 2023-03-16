@@ -11,7 +11,8 @@
 #' @return The simplex lattice design
 #' @export
 #'
-#' @examples SLDnew(3, 2, center=TRUE, axial=TRUE)
+#' @examples SLDnew(3, 2, center=FALSE, axial=FALSE)
+#' @examples SLDnew(3, 2, center=1, axial=1)
 SLDnew <- function(fac, lev, center=FALSE, axial=FALSE){
   # Adapted from SLD function in mixexp package
   cnames <- paste("x", 1:fac, sep = "")
@@ -26,3 +27,5 @@ SLDnew <- function(fac, lev, center=FALSE, axial=FALSE){
   rownames(SL) <- rnames
   return(SL)
 }
+
+

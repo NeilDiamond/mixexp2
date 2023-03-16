@@ -22,5 +22,6 @@ The simplex lattice design
 Create Simplex Lattice Design
 }
 \examples{
-SLDnew(3, 2, center=TRUE, axial=TRUE)
+SLDnew(3, 2, center=FALSE, axial=FALSE)
+SLDnew(3, 2, center=1, axial=1)
 }
