@@ -22,22 +22,6 @@ library(nloptr)
 library(knitr)
 library(dplyr)
 
-SLDnew <- function(fac, lev, center=F, axial=F){
-  # Adapted from SLD function in mixexp package
-  
-  cnames <- paste("x", 1:fac, sep = "")
-  SL <- t(xsimplex(fac,lev))/lev
-  centermat <- matrix(1/fac, center, fac)
-  axialmat <-  matrix(rep(unlist(matrix(0.5/fac, fac, fac) + 0.5*diag(fac)),axial), ncol=fac, byrow=T)
-  SL <- rbind(SL,centermat,axialmat)
-  colnames(SL) <- cnames
-  dimS <- dim(SL)
-  rows <- dimS[1]
-  rnames <- paste(1:rows)
-  rownames(SL) <- rnames
-  return(SL)
-}
-
 des <- SLDnew(3, 2, center=1, axial=1)
 ```
 
@@ -48,7 +32,7 @@ des <- SLDnew(3, 2, center=1, axial=1)
 ## The Design Plot
 
 ```{r}
-mixexp::DesignPoints(0.2+0.4*des, x1lower=0.2,x1upper=0.6,x2lower=0.2,x2upper=0.6,x3lower=0.2,x3upper=0.6,
+DesignPoints(0.2+0.4*des, x1lower=0.2,x1upper=0.6,x2lower=0.2,x2upper=0.6,x3lower=0.2,x3upper=0.6,
              pseudo=T)
 ```
 
@@ -77,50 +61,14 @@ anova(fit2)$`Sum Sq`[4]
 anova(fit3)$`Sum Sq`-anova(fit2)$`Sum Sq`[4]
 
 
-mixexp::MixturePlot(des=desrun1, mod=2)
-mixexp::MixturePlot(des=desrun1,  mod=2, cols=T)
+MixturePlot(des=desrun1, mod=2)
+MixturePlot(des=desrun1,  mod=2, cols=T)
 ```
 
 
 ```{r}
 
-MixtureAnalysis <- function(DF, resp="y"){
-  respval <- eval(parse(text=paste0("DF$",resp)))
-  
-  xvars <- setdiff(names(DF),resp)
-  
-  xvars0 <- xvars[-1]
-  xvars1 <- paste(xvars0, collapse=",")
-  xvars2 <- paste(xvars,  collapse=",")
-  xvars3 <- paste(xvars,  collapse="+")
-  
-  DF$respval <- respval
-  fit0 <- eval(parse(text=paste0("lm(respval ~ (",xvars3,")^2-1,data=DF)")))
-  fit <- eval(parse(text=paste0("rsm(respval ~ FO(",xvars1,")+TWI(", xvars2,"),data=DF)")))
-  mixaov <- matrix(NA, 5, 6)
-  row.names(mixaov) <- c("Regression","Linear","Quadratic","Residual Error", "Total")
-  colnames(mixaov) <- c("Df","Seq SS","Adj SS","Adj MS","F","p")
-  
-  Anovafit <- Anova(fit)
-  mixaov[2:4,3] <- Anovafit$`Sum Sq`
-  mixaov[2:4,1] <- Anovafit$Df
-  mixaov[2:3,5] <- Anovafit$`F value`[1:2]
-  mixaov[2:3,6] <- Anovafit$`Pr(>F)`[1:2]
-  
-  fit2 <- lm(respval ~ 1,data=DF)
-  mixaov[2:4,2] <- anova(fit)$`Sum Sq`
-  mixaov[5,1] <- anova(fit2)$Df
-  mixaov[5,2] <- anova(fit2)$`Sum Sq`
-  mixaov[1,1] <- mixaov[2,1]+mixaov[3,1]
-  mixaov[1,2] <- mixaov[2,2]+mixaov[3,2]
-  mixaov[1,3] <- mixaov[1,2]
-  mixaov[1:4,4] <- mixaov[1:4,3]/mixaov[1:4,1]
-  mixaov[1,5] <- mixaov[1,4]/mixaov[4,4]
-  mixaov[1,6] <- 1-pf(mixaov[1,5], mixaov[1,1], mixaov[1,4])
-  options(knitr.kable.NA = '')
- list(kable(mixaov, digits=c(0,2,2,2,2,3)),
- fit0)
-}
+
 MixtureAnalysis(desrun1)
 ```
 
@@ -173,7 +121,7 @@ eval_g_eq <- function(x, fitobj=fit1){
 }
 
 
-res <- nloptr::nloptr(x0=x0,
+res <- nloptr(x0=x0,
              eval_f=predictfn,
              lb=lb, ub=ub, eval_g_eq=eval_g_eq, fitobj=fitobj,
              opts=list(algorithm="NLOPT_GN_ISRES",maxeval=100000))
@@ -185,19 +133,19 @@ predict(fit1, newdata=newdata1)
 ## Soap
 
 ```{r}
-soapdes <- mixexp::Xvert(4, uc=c(0.4,0.4,0.7,0.4), lc=c(0.05,0.05,0.30,0.05))
+soapdes <- Xvert(4, uc=c(0.4,0.4,0.7,0.4), lc=c(0.05,0.05,0.30,0.05))
 soapdes <- soapdes[,-ncol(soapdes)]
 soapdes
 soapdeswithaxial <- rbind(soapdes,0.5*(soapdes[rep(nrow(soapdes),nrow(soapdes)-1),]+soapdes[-nrow(soapdes),]))
 soapdeswithaxial <- round(soapdeswithaxial,6)
 
 
-mixexp::DesignPoints(soapdeswithaxial[near(soapdeswithaxial$x1,min(soapdeswithaxial$x1)),-1], 
+DesignPoints(soapdeswithaxial[near(soapdeswithaxial$x1,min(soapdeswithaxial$x1)),-1], 
              cornerlabs=c("Lye", "Alcohol","Salt"), axislabs=c("Salt","Alcohol","Lye"),
              x1lower=0.05, x1upper=0.40, x2lower=0.30, x2upper=0.70,x3lower=0.05, x3upper=0.40, pseudo=T)
-mixexp::DesignPoints(soapdeswithaxial[near(soapdeswithaxial$x2,min(soapdeswithaxial$x2)),-2])
-mixexp::DesignPoints(soapdeswithaxial[near(soapdeswithaxial$x3,min(soapdeswithaxial$x3)),-3])
-mixexp::DesignPoints(soapdeswithaxial[near(soapdeswithaxial$x4,min(soapdeswithaxial$x4)),-4])
+DesignPoints(soapdeswithaxial[near(soapdeswithaxial$x2,min(soapdeswithaxial$x2)),-2])
+DesignPoints(soapdeswithaxial[near(soapdeswithaxial$x3,min(soapdeswithaxial$x3)),-3])
+DesignPoints(soapdeswithaxial[near(soapdeswithaxial$x4,min(soapdeswithaxial$x4)),-4])
 
 near(soapdeswithaxial$x1,max(soapdeswithaxial$x1))
 soapdeswithaxial[near(soapdeswithaxial$x1,max(soapdeswithaxial$x1)),]
